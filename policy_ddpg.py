@@ -3,18 +3,18 @@
 """
 @author: Jiawei Wu
 @create time: 2019-12-06 23:01
-@edit time: 2020-10-07 16:34
-@FilePath: /PA/pa_ddpg.py
+@edit time: 2021-04-14 16:09
+@file: /RL4Net-PA/pa_ddpg.py
 """
 
 import torch
 import numpy as np
 import time
 import gym
-from vvlab.agents import DDPGBase
-from vvlab.models import SimpleActorNet, SimpleCriticNet
-from vvlab.envs.power_allocation import PAEnv, Node
-from vvlab.utils.OUProcess import OUProcess
+from rl4net.agents import DDPGBase
+from rl4net.models import SimpleActorNet, SimpleCriticNet
+from rl4net.envs.power_allocation import PAEnv, Node
+from rl4net.utils.OUProcess import OUProcess
 CUDA = torch.cuda.is_available()
 
 
