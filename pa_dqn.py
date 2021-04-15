@@ -1,79 +1,94 @@
 #!/usr/bin/env python
-# coding=utf-8
+# -*- coding: UTF-8 -*-
 """
 @author: Jiawei Wu
-@create time: 2019-12-07 20:17
-@edit time: 2020-11-23 11:29
-@FilePath: /PA/pa_dqn.py
+@create time: 1970-01-01 08:00
+@edit time: 2021-04-14 17:19
+@file: /RL4Net-PA/pa_dqn.py
+@desc: 
 """
-from functools import reduce
+import utils
 import numpy as np
-import torch
-import torch.nn as nn
+from policy_dqn import DQN
+# from policy_el_dqn import DQNAgentAdapter as DQN
 from torch.utils.tensorboard import SummaryWriter
-from vvlab.agents.DQN_base import DQNBase
+from benckmarks import cal_benchmarks
+from argparse import ArgumentParser
+import json
+MAX_EPISODES = 1000
+DECAY_THRES = 500
 
 
-CUDA = torch.cuda.is_available()
+@utils.timeit
+def dqn_loop(env, agent, logdir):
+    summary_writer = SummaryWriter(log_dir=logdir)
+    # train
+    print(f"Start DQN loop.")
+    train_his = []
+    for ep in range(MAX_EPISODES):
+        cur_state = env.reset()
+        cur_state = cur_state.reshape((-1, env.n_states))
+        done = False
+        ep_his = []
+        agent.epsilon = max((DECAY_THRES - ep) / DECAY_THRES, 0.001)
+        while True:
+            action = agent.get_action(cur_state)[0]
+            next_state, reward, done, info = env.step(
+                action.astype(np.int32))
+            next_state = next_state.reshape((-1, env.n_states))
+            agent.add_steps(cur_state, action, reward, done, next_state)
+            loss = agent.learn()
+            if loss:
+                summary_writer.add_scalar('loss', loss, agent.eval_step)
+            cur_state = next_state
+            ep_his.append(reward)
+            if done:
+                cum_reward = np.mean(ep_his)
+                summary_writer.add_scalar('reward', cum_reward, ep)
+                train_his.append({'cum_reward': cum_reward, 'ep_his': ep_his})
+                if len(train_his) % 10 == 0:
+                    print('EP: ', len(train_his),  'DQN:',
+                          np.mean([t['cum_reward'] for t in train_his[-10:]]), info, flush=True)
+                break
+    agent.save(episode=MAX_EPISODES)
+    # find best ep_his
+    train_his.sort(key=lambda o: o['cum_reward'], reverse=True)
+    dqn_result = train_his[0]['cum_reward'], train_his[0]['ep_his']
+    return dqn_result
 
 
-class PADQNNet(nn.Module):
-    """一个只有一层隐藏层的DQN神经网络"""
-
-    def __init__(self, n_states, n_actions, card_no=0):
-        """
-        定义隐藏层和输出层参数
-        @param n_obs: number of observations
-        @param n_actions: number of actions
-        @param n_neurons: number of neurons for the hidden layer
-        """
-        super(PADQNNet, self).__init__()
-        self.card_no = card_no
-        self.seq = nn.Sequential(
-            nn.Linear(n_states, 128),
-            nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, n_actions),
-            nn.ReLU(),
-        )
-
-    def forward(self, x):
-        """
-        定义网络结构: 第一层网络->ReLU激活->输出层->softmax->输出
-        """
-        if CUDA:
-            x = x.cuda(self.card_no)
-        action_values = self.seq(x)
-        return action_values
+def get_dqn_agent(env, **kwargs):
+    n_states = env.n_states
+    n_actions = env.n_actions
+    agent = DQN(n_states, n_actions, **kwargs)
+    return agent
 
 
-class DQN(DQNBase):
-    """
-    基于DQNBase创建的DQN类，通过附带的简单神经网络创建了 eval dqn network 和 target dqn network
-    """
+def get_instances(args=utils.get_args()):
+    env = utils.get_env(**args.env)
+    agent = get_dqn_agent(env, **args.agent)
+    conf = utils.get_config('config.yaml')
+    conf['env'].update(args.env)
+    conf['agent'].update(args.agent)
+    logdir = utils.get_logdir(conf)
+    return env, agent, logdir
 
-    def __init__(self, n_states, n_actions, **kwargs):
-        super().__init__(n_states, n_actions, **kwargs)
 
-    def _build_net(self):
-        self.eval_net = PADQNNet(self.n_states, self.n_actions, self.card_no)
-        self.target_net = PADQNNet(self.n_states, self.n_actions, self.card_no)
+def demo(env, agent, logdir):
+    dqn_result = dqn_loop(env, agent, logdir)
 
-    def add_steps(self, cur_state, action, reward, done, next_state):
-        size = action.shape[0]
-        for i in range(size):
-            self.add_step(cur_state[i], action[i], reward, done, next_state[i])
+    result_path = logdir / 'results.log'
+    with result_path.open('w') as f:
+        # RL results
+        f.write('dqn: ' + str(dqn_result[0]) + '\r\n')
+        # f.write(str(dqn_result[1]))
+        # benckmarks
+        results = cal_benchmarks(env)
+        for result in results:
+            f.write(result[0] + ': ' + str(result[1]) + '\r\n')
+    print('done')
 
-    def get_action(self, state):
-        # 将行向量转为列向量（1 x n_states -> n_states x 1 x 1)
-        if np.random.rand() < self.epsilon:
-            # 概率随机
-            action_size = state.shape[0]
-            return np.random.randint(0, self.n_actions, (1, action_size))
-        else:
-            # greedy
-            state = torch.FloatTensor(state)
-            state = torch.unsqueeze(torch.FloatTensor(state), 0)
-            action_values = self.eval_net.forward(state).cpu()
-            return action_values.data.numpy().argmax(axis=2)
+
+if __name__ == '__main__':
+    instances = get_instances()
+    demo(*instances)

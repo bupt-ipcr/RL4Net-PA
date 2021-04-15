@@ -3,7 +3,7 @@
 """
 @author: Jiawei Wu
 @create time: 2019-12-07 20:17
-@edit time: 2021-04-14 16:28
+@edit time: 2021-04-15 15:41
 @file: /RL4Net-PA/policy_dqn.py
 """
 from functools import reduce
@@ -14,7 +14,8 @@ from torch.utils.tensorboard import SummaryWriter
 from rl4net.agents.DQN_base import DQNBase
 import os
 
-CUDA = torch.cuda.is_available()
+# CUDA = torch.cuda.is_available()
+CUDA = False
 
 
 class PADQNNet(nn.Module):

@@ -51,8 +51,8 @@ def rl_loop(env, agent, logdir):
 
 def get_instance():
     env = utils.get_env()
-    for k, v in env.__dict__.items():
-        print(f'{k}: {v}')
+    # for k, v in env.__dict__.items():
+    #     print(f'{k}: {v}')
     n_states = env.n_states
     n_actions = env.n_actions
     agent = DQN(n_states, n_actions)
