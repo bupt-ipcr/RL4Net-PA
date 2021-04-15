@@ -18,10 +18,10 @@ import pickle
 here = Path()
 figs = here / 'figs'
 valid_keys = ['Number of DRs in each cluster', 'Number of DTs',
-              'Number of CUE', 'BS Power (W)', 'Batch Size']
+              'Number of CUE', 'BS Power (W)']
 alias = {
     'bs_power': 'BS Power (W)', 'm_usrs': 'Number of CUE',
-    'n_t_devices': 'Number of DTs', 'batch_size': 'Batch Size',
+    'n_t_devices': 'Number of DTs',
     'm_r_devices': 'Number of DRs in each cluster'
 }
 plot_funcs = {}
@@ -36,6 +36,8 @@ def get_args():
     parser = ArgumentParser(description='Params for ploting.')
     parser.add_argument('-d', '--dir', type=str, default='runs',
                         help='Directory to visualize.')
+    parser.add_argument('-f', '--file', type=str, default='all_data.pickle',
+                        help='File of all_data.')
     parser.add_argument('-r', '--reload', action='store_true',
                         help='Force to reload data.')
     for name, func in plot_funcs.items():
@@ -77,7 +79,7 @@ def lineplot(data, key, aim, **kwargs):
     ) if k in valid_keys and k != key))
     plt.xticks(sorted(list(set(data[key]))))
     ax = sns.lineplot(data=data[cur_index], x=key, y=aim, hue="algorithm",
-                      hue_order=['DRPA', 'FP', 'WMMSE', 'maximum', 'random'],
+                      hue_order=['FP', 'DRPA', 'WMMSE', 'maximum', 'random'],
                       style="algorithm", markers=True, dashes=False, ci=None,
                       markersize=8, **kwargs)
     ax.legend().set_title('')
@@ -90,7 +92,7 @@ def displot(data, key, aim, **kwargs):
     # fig = plt.figure(figsize=(10, 7.5))
     fig = plt.figure()
     ax = sns.displot(data=data, x=aim, kind="ecdf", hue="algorithm",
-                     hue_order=['DRPA', 'FP', 'WMMSE', 'maximum', 'random'],
+                     hue_order=['FP', 'DRPA', 'WMMSE', 'maximum', 'random'],
                      height=3, aspect=1.5, facet_kws=dict(legend_out=False),
                     # aspect=1.5, facet_kws=dict(legend_out=False),
                      **kwargs)
@@ -109,7 +111,7 @@ def boxplot(data, key, aim, **kwargs):
     ) if k in valid_keys and k != key))
     plt.xticks(sorted(list(set(data[key]))))
     ax = sns.boxplot(data=data[cur_index], x=key, y=aim, hue="algorithm",
-                     hue_order=['DRPA', 'FP', 'WMMSE', 'maximum', 'random'],
+                     hue_order=['FP', 'DRPA', 'WMMSE', 'maximum', 'random'],
                      showfliers=False, **kwargs)
     ax.legend().set_title('')
     plt.ylabel(f'Average {aim} (bps/Hz)')
@@ -155,7 +157,7 @@ def get_datas(directory: Path()):
 def get_all_data(args):
     runsdir = here / args.dir
     # try to load data from pickle
-    save_file = here / 'all_data.pickle'
+    save_file = here / args.file
     if not args.reload and save_file.exists():
         with save_file.open('rb') as f:
             all_data = pickle.load(f)
@@ -195,7 +197,7 @@ def get_all_data(args):
     return all_data
 
 
-@ register
+@register
 def plot_avg(all_data):
     for key in tqdm(valid_keys, desc="Ploting AVG"):
         for aim in ['Rate', 'sum-rate']:
@@ -223,7 +225,7 @@ def plot_cdf(all_data):
         plt.close(fig)
 
 
-@ register
+@register
 def plot_sbp(all_data):
     """Plot sum bs power"""
     all_data['Sum BS Power'] = all_data['BS Power'] * all_data['m_usrs']
@@ -232,14 +234,14 @@ def plot_sbp(all_data):
     key = 'Sum BS Power'
     for aim in tqdm(['Rate', 'sum-rate'], desc='Ploting SBP'):
         fig = plt.figure(figsize=(15, 10))
-        sns.boxplot(x=key, y=aim, hue="algorithm", hue_order=['DRPA', 'FP', 'WMMSE', 'maximum', 'random'],
+        sns.boxplot(x=key, y=aim, hue="algorithm", hue_order=['FP', 'DRPA', 'WMMSE', 'maximum', 'random'],
                     data=all_data[cur_index], palette="Set1", showfliers=False)
         check_and_savefig(figs / f'box/{aim}-{key}.png')
         plt.close(fig)
 
         fig = plt.figure(figsize=(15, 10))
         sns.lineplot(data=all_data[cur_index], x=key, y=aim, hue="algorithm",
-                     hue_order=['DRPA', 'FP', 'WMMSE', 'maximum', 'random'],
+                     hue_order=['FP', 'DRPA', 'WMMSE', 'maximum', 'random'],
                      style="algorithm", markers=True, dashes=False, ci=None)
         plt.xticks(sorted(list(set(all_data[cur_index][key]))))
         check_and_savefig(figs / f'avg/{aim}-{key}.png')
@@ -302,7 +304,9 @@ def plot_icc(all_data):
         fig, ax = func(data=all_data, key=key, aim=aim,
                        palette=sns.color_palette(palette, 5))
         if func == lineplot:
-            ax.set_ylim((20, 80))
+            ax.set_ylim((10, 80))
+        elif func == boxplot:
+            ax.set_ylim((0, 140))
         check_and_savefig(figs / f'icc/{aim}-{key}-{palette}.png',
                           dpi=300)
         plt.close(fig)
