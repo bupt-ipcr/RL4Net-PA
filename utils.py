@@ -1,13 +1,24 @@
 import json
 from datetime import datetime
 from pathlib import Path
-
+from functools import wraps
 import numpy as np
 import yaml
-from vvlab.envs.power_allocation.pa_env import PAEnv
-
+from rl4net.envs.power_allocation import PAEnv_v0, PAEnv_v1, PAEnv_v2, PAEnv_v3
+from argparse import ArgumentParser
 config_path = 'config.yaml'
 default_config_path = 'default_config.yaml'
+
+
+def timeit(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = datetime.now()
+        ret = func(*args, **kwargs)
+        end = datetime.now()
+        print(f'<{func.__name__}> cost time:', end - start)
+        return ret
+    return wrapper
 
 
 def create_seeds():
@@ -21,6 +32,77 @@ def create_seeds():
     return seeds
 
 
+def check_exist(logdir):
+    # check if logdir has result.log
+    parent = logdir.parent
+    if parent.exists():
+        for train_dir in parent.iterdir():
+            for train_file in train_dir.iterdir():
+                if train_file.name == "results.log":
+                    return True
+        # clear
+        for train_dir in parent.iterdir():
+            for train_file in train_dir.iterdir():
+                train_file.unlink()
+            try:
+                train_dir.rmdir()
+            except:
+                print(f'{train_dir}.rmdir() failed')
+            print(f'{train_dir}.rmdir()')
+    return False
+
+
+def get_args():
+    parser = ArgumentParser()
+    parser.add_argument('-e', '--env_changes', type=str,
+                        action='append',
+                        default=[], nargs='+',
+                        help='Changes of env compare to default config.')
+    parser.add_argument('-a', '--agent_changes', type=str,
+                        action='append',
+                        default=[], nargs='+',
+                        help='Changes of agent compare to default config.')
+    parser.add_argument('-c', '--card_no', type=int,
+                        help='GPU card no.', default=0)
+    parser.add_argument('-o', '--offset', type=int,
+                        help='Seed offset.', default=0)
+    parser.add_argument('-s', '--seeds', type=int,
+                        help='Seed count.', default=100)
+    parser.add_argument('-i', '--ignore', action='store_true',
+                        help='Ignore processed seed.', default=False)
+    args = parser.parse_args()
+    env = {}
+    for changes in args.env_changes:
+        for change in changes:
+            key, value = change.split('=')
+            try:
+                value = int(value)
+            except:
+                try:
+                    value = json.loads(value)
+                except:
+                    pass
+            env[key] = value
+    args.env = env
+    agent = {}
+    # card_no
+    agent['card_no'] = args.card_no
+    for changes in args.agent_changes:
+        for change in changes:
+            key, value = change.split('=')
+            try:
+                value = int(value)
+            except:
+                try:
+                    value = json.loads(value)
+                except:
+                    pass
+            agent[key] = value
+    args.agent = agent
+
+    return args
+
+
 def get_config(path):
     with open(path, 'r') as f:
         config = yaml.safe_load(f)
@@ -32,7 +114,8 @@ def get_env(**kwargs):
     config = get_config(config_path)
     env_config = config['env']
     env_config.update(kwargs)
-    env = PAEnv(**env_config)
+    env = PAEnv_v1(**env_config)
+    # print(f'env.seed is {env.seed}')
     return env
 
 
