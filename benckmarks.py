@@ -1,14 +1,6 @@
-import argparse
+
 import utils
 import numpy as np
-
-
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--seed', type=int, default=799345)
-    args = parser.parse_args()
-    return args
-
 
 def mock_FP_algorithm(env):
     P = np.random.rand(env.n_recvs)
@@ -90,7 +82,7 @@ def cal_benchmark(algorithm, env):
             return algorithm.name, np.mean(cum_r)
 
 
-def cal_benchmarks(env):
+def cal_benchmarks(env, algs=None):
     from collections import namedtuple
     Algorithm = namedtuple('Algorithm', 'name func type')
     algorithms = [
@@ -99,15 +91,17 @@ def cal_benchmarks(env):
         Algorithm('random', random_algorithm, 'action'),
         Algorithm('maximum', maximum_algorithm, 'action')
     ]
-    results = []
-    for algorithm in algorithms:
-        results.append(cal_benchmark(algorithm, env))
+    
+    if algs:
+        algorithms = filter(algorithms, lambda alg: alg.name in algs)
+
+    results = [cal_benchmark(algorithm, env) for algorithm in algorithms]
     return results
 
 
 if __name__ == '__main__':
-    args = get_args()
-    env = utils.get_env(seed=args.seed)
+    args = utils.get_args_from_config()
+    env = args.Env(**args.env)
     results = cal_benchmarks(env)
     for name, reward in results:
         print(f'{name}: {reward}')

@@ -1,40 +1,61 @@
-env: 
-    seed:
-                799345
-    n_levels:
-                10  # power level count
-    n_t_devices:
-                9
-    m_r_devices:
-                5
-    n_bs:
-                1   # consant, don't change
-    m_usrs:
-                4
-    bs_power:
-                10  # W
-    R_bs:
-            1   # adjust to match n_t_devices
-    R_dev:
-            0.1
-    r_bs:
-            0.01
-    r_dev:
-            0.001
-    sorter:
-            power
-    metrics:
-            - power
-            - rate
-            - fading
-agent:
-    gamma:
-            0.0 # discount rate
-    learning_rate:
-            0.001
-    init_epsilon:
-            0.9
-    min_epsilon:
-            0.01
-    batch_size:
-            128
+scopes:
+  - 
+    name: main # default scope
+    configs:
+      card_no:
+        default: 0
+        brief: c  # config的brief属性只有在main scope会生效
+        alias:
+          - agent@card_no
+        ignore_change: true
+      DQN:
+        type: class # class will load using importlib
+        default: policy_dqn.DQN
+        # value: policy_el_dqn.DQNAdapter
+        value: policy_dqn.DQN
+        alias:
+          - agent@DQN
+      ignore:
+        brief: i
+        default: False
+      Env:
+        type: class
+        value: rl4net.envs.power_allocation.PAEnv_v1
+      seeds:
+        ignore_change: true
+        brief: s
+        value: 1200
+  -  
+    name: env
+    brief: e # default using name[0]
+    configs:
+      seed:
+        type: int # int and str will be default convert
+        default: 799345
+        value: 799345 # if value missed, set to default
+
+      n_levels:
+        default: 10
+
+      n_t_devices: 9 # this is a brief desc, directly to default attr
+      m_r_devices: 5
+      n_bs: 1   # consant, don't change
+      m_usrs: 4
+      bs_power: 10  # W
+      R_bs: 1   # adjust to match n_t_devices
+      R_dev: 0.1
+      r_bs: 0.01
+      r_dev: 0.001
+      sorter: recv
+      # type of list will also be converted defaultily
+      metrics:  [power, rate, fading]
+      
+  - 
+    name: agent
+    brief: a
+    configs:
+      gamma: 0.0 # discount rate
+      learning_rate: 0.001
+      init_epsilon: 0.9
+      min_epsilon: 0.01
+      batch_size: 128

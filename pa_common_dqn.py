@@ -3,27 +3,23 @@
 """
 @author: Jiawei Wu
 @create time: 2021-04-14 16:10
-@edit time: 2021-04-14 21:26
+@edit time: 2021-04-19 12:06
 @file: /RL4Net-PA/pa_common_dqn.py
 @desc: 
 """
 
 import utils
 import numpy as np
-from policy_dqn import DQN
-# from policy_el_dqn import DQNAgentAdapter as DQN
+# from policy_dqn import DQN
 from torch.utils.tensorboard import SummaryWriter
 from benckmarks import cal_benchmarks
 from argparse import ArgumentParser
 import json
-
-args = utils.get_args()
+args = utils.get_args_from_config('config.yaml')
 seeds = utils.create_seeds()
 
 MAX_EPISODES = args.seeds
 DECAY_THRES = int(MAX_EPISODES*0.75)
-
-
 
 
 @utils.timeit
@@ -33,7 +29,7 @@ def dqn_loop(env, agent, logdir):
     print(f"Start DQN loop.")
     train_his, best_score = [], 0
     for ep in range(MAX_EPISODES):
-        idx = ep%len(seeds)
+        idx = ep % len(seeds)
         cur_state = env.reset(seed=seeds[idx])
         cur_state = cur_state.reshape((-1, env.n_states))
         agent.epsilon = max((DECAY_THRES - ep) / DECAY_THRES, 0.001)
@@ -57,7 +53,8 @@ def dqn_loop(env, agent, logdir):
         if ep % 10 == 0:
             if ep > len(seeds):
                 benchmark = test_with_seed(env, agent, 980615)
-                print(f'EP: {ep} | score: {score} | benchmark: {benchmark}', flush=True)
+                print(
+                    f'EP: {ep} | score: {score} | benchmark: {benchmark}', flush=True)
             else:
                 print(f'EP: {ep} | score: not engouth data', flush=True)
         # try to save
@@ -65,6 +62,8 @@ def dqn_loop(env, agent, logdir):
             best_score = score
             agent.save(episode=ep, save_path=f"{logdir / 'common_model.pth'}")
 
+    # 训练结束后保留一个final model
+    agent.save(episode=ep, save_path=f"{logdir / 'final_model.pth'}")
     # after train, save train info
     with open(f"{logdir / 'train_his.json'}", 'x') as f:
         json.dump(train_his, f)
@@ -74,7 +73,8 @@ def dqn_loop(env, agent, logdir):
     # test model ability with loaded model
     agent.load(f"{logdir / 'common_model.pth'}")
     agent.epsilon = 0
-    loaded_score = np.mean([test_with_seed(env, agent, seed) for seed in seeds])
+    loaded_score = np.mean([test_with_seed(env, agent, seed)
+                            for seed in seeds])
     print('loaded_score is :', loaded_score)
 
     return best_score
@@ -95,20 +95,13 @@ def test_with_seed(env, agent, seed):
     return np.mean(rates)
 
 
-def get_dqn_agent(env, **kwargs):
-    n_states = env.n_states
-    n_actions = env.n_actions
-    agent = DQN(n_states, n_actions, **kwargs)
-    return agent
-
-
-def get_instances(args=utils.get_args()):
-    env = utils.get_env(**args.env)
-    agent = get_dqn_agent(env, **args.agent)
-    conf = utils.get_config('config.yaml')
-    conf['env'].update(args.env)
-    conf['agent'].update(args.agent)
-    logdir = utils.get_logdir(conf)
+def get_instances(args):
+    Env, DQN = args.Env, args.DQN
+    env = Env(**args.env)
+    agent = DQN(env.n_states, env.n_actions, **args.agent)
+    logdir = args.logdir
+    if not logdir.exists():
+        logdir.mkdir(parents=True)
     return env, agent, logdir
 
 
@@ -119,14 +112,18 @@ def demo(env, agent, logdir):
     with result_path.open('w') as f:
         # RL results
         f.write('dqn: ' + str(dqn_result) + '\r\n')
-        # benckmarks, use default seed
-        env.reset(seed=980615)
-        results = cal_benchmarks(env)
+        # benckmarks, use const
+        results = [
+            ('fp', 54.56130729667474),
+            ('wmmse', 34.567394697100305),
+            ('random', 21.539164702976013),
+            ('maximum', 23.593070785331147),
+        ]
         for result in results:
             f.write(result[0] + ': ' + str(result[1]) + '\r\n')
     print('done')
 
 
 if __name__ == '__main__':
-    instances = get_instances()
+    instances = get_instances(args)
     demo(*instances)
